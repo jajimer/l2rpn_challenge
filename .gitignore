@@ -1,0 +1,6 @@
+track1_starting_kit/
+docs/
+getting_started/
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
