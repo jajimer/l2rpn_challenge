@@ -64,8 +64,7 @@ class PGAgent(object):
         log_prob = dist.log_prob(action)
         self.log_actions_memory.append(log_prob)
         self.entropy_memory.append(dist.entropy())
-
-        return action.item()
+        return action.numpy()[0]
 
     
     def store_rewards(self, r):

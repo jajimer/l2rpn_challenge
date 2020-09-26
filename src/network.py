@@ -48,7 +48,7 @@ class VPGNetwork(nn.Module):
         self.n_actions = n_actions
 
         self.net = nn.Sequential(
-            nn.Linear(s_dim, 128),
+            nn.Linear(*s_dim, 128),
             nn.ReLU(),
             nn.Linear(128, n_actions),
             nn.Sigmoid()
