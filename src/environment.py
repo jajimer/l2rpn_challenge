@@ -6,31 +6,36 @@ import numpy as np
 import grid2op
 import gym
 from gym import spaces
+from grid2op.Reward import L2RPNReward
 from stable_baselines3.common.env_checker import check_env
 
 
 class Actuator(object):
     def __init__(self, env_grid2op):
+        #TODO Include change_status actions
         # Grid info
         self.sub_info = env_grid2op.sub_info
         self.n_subs = len(self.sub_info)
         self.max_connections = max(self.sub_info)
+        self.num_actions = sum(self.sub_info)
         # Mask to limit action space
-        self.mask = np.zeros((self.n_subs, self.max_connections),
+        self.mask = np.zeros((self.n_subs, self.num_actions),
             dtype = np.bool)
+        c = 0
         for i, n in enumerate(self.sub_info):
-            self.mask[i, :n] = 1
+            self.mask[i, c:c+n] = 1
+            c += n
         # Grid2op action space
-        self.action_space = env_grid2op.action_space
-        self.do_nothing = self.action_space()
+        self._action_space = env_grid2op.action_space
+        self._do_nothing = self._action_space()
         
 
     def get_action_space(self):
-        return spaces.MultiBinary([self.n_subs, self.max_connections])
+        return spaces.MultiBinary(self.num_actions)
 
     def process_action(self, action):
-        change_bus = action[self.mask]
-        new_action = self.action_space({'change_bus': change_bus})
+        change_bus = action.astype('bool')
+        new_action = self._action_space({'change_bus': change_bus})
         return new_action
 
 
@@ -96,7 +101,8 @@ class GridEnv(gym.Env):
     def __init__(self, env_name="l2rpn_neurips_2020_track1_small", env_config=None):
         super(GridEnv, self).__init__()
         # Instance of the grid2op env
-        self.env_ = grid2op.make(env_name)
+        self.env_ = grid2op.make(env_name, reward_class=L2RPNReward)
+        self.env_.seed(42)
         # Actuator and Sensor
         self.actuator = Actuator(self.env_)
         self.sensor = Sensor(self.env_)
@@ -104,8 +110,6 @@ class GridEnv(gym.Env):
         self.action_space = self.actuator.get_action_space()
         # Observation space
         self.observation_space = self.sensor.get_observation_space()
-        # Done
-        self.done = None
 
     def reset(self):
         obs_ = self.env_.reset()
@@ -117,9 +121,6 @@ class GridEnv(gym.Env):
         obs_, reward_, done, info = self.env_.step(action_)
         obs = self.sensor.process_obs(obs_)
         reward = self.sensor.process_reward(reward_)
-        if done:
-            _ = self.reset()
-
         return obs, reward, done, info
 
     def render(self):
@@ -133,5 +134,18 @@ if __name__ == '__main__':
     env_name = "l2rpn_neurips_2020_track1_small"
     env = GridEnv(env_name)
     check_env(env)
+    # Doing nothing
+    for i in range(3):
+        r = 0
+        done = False
+        obs = env.reset()
+        t = 0
+        while not done:
+            a = env.action_space.sample() * 0
+            _, reward, done, info = env.step(a)
+            t += 1
+            r += reward
+        print(i, t, r)
+
 
 
