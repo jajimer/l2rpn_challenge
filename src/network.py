@@ -48,17 +48,19 @@ class TwoHeadedNet(nn.Module):
     :param device: (th.device)
     """
 
-    def __init__(self, feature_dim: int = 512):
+    def __init__(self, feature_dim: int = 512, policy_dim: int = 36):
         super(TwoHeadedNet, self).__init__()
         
         device = th.device('cuda' if th.cuda.is_available() else 'cpu')
         self.feature_dim = feature_dim
+        self.policy_dim = policy_dim
 
         # Create networks
         self.policy_net = nn.Sequential(
-            nn.ConvTranspose2d(self.feature_dim, 32, (5, 5)),
-            nn.ConvTranspose2d(32, 8, (4, 4), 2),
-            nn.ConvTranspose2d(8, 1, (3, 6), (3, 1))
+            nn.Linear(self.feature_dim, 64),
+            nn.ReLU(),
+            nn.Linear(64, self.policy_dim),
+            nn.Softmax(1)
         ).to(device)
 
         self.value_net = nn.Sequential(
@@ -73,8 +75,7 @@ class TwoHeadedNet(nn.Module):
         """
         :return: (th.Tensor, th.Tensor) latent_policy, latent_value of the specified network.
         """
-        input_pi = features[:, :, None, None] # Add HxW to feature map
-        return self.policy_net(input_pi), self.value_net(features)
+        return self.policy_net(features), self.value_net(features)
 
     def _get_final_dims(self):
         """
@@ -83,7 +84,7 @@ class TwoHeadedNet(nn.Module):
         with th.no_grad():
             x = th.randn(1, self.feature_dim)
             pi, v = self.forward(x)
-        return tuple(pi.shape[2:]), v.shape[1]
+        return pi.shape[1], v.shape[1]
 
 
 if __name__ == '__main__':
@@ -96,3 +97,4 @@ if __name__ == '__main__':
     print(features.shape)
     pi, v = net(features)
     print(net.latent_dim_pi, net.latent_dim_vf)
+    print(pi)

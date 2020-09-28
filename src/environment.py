@@ -110,6 +110,10 @@ class GridEnv(gym.Env):
         self.action_space = self.actuator.get_action_space()
         # Observation space
         self.observation_space = self.sensor.get_observation_space()
+        # Number of substations
+        self.num_substations = self.actuator.n_subs
+        # Mask
+        self.mask = self.actuator.mask
 
     def reset(self):
         obs_ = self.env_.reset()
