@@ -40,8 +40,13 @@ class GridEnv(gym.Env):
         return obs
 
     def step(self, action):
-        action_ = self.actuator.process_action(action)
-        obs_, reward_, done, info = self.env_.step(action_)
+        try:
+            action_ = self.actuator.process_action(action)
+            obs_, reward_, done, info = self.env_.step(action_)
+        except:
+            print('This action cause an error:')
+            print(action)
+            obs_, reward_, done, info = self.env_.step(self.actuator._do_nothing)
         obs = self.sensor.process_obs(obs_)
         reward = self.sensor.process_reward(reward_)
         return obs, reward, done, info
