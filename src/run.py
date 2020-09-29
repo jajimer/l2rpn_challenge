@@ -1,71 +1,74 @@
-import grid2op
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from agent import PGAgent
-from sensors import *
-from grid2op.Reward import L2RPNReward
-plt.style.use('seaborn')
+"""
+Execute the model.
+"""
 
 
-def run(run_name, num_episodes, benchmark = False):
-    env = grid2op.make("l2rpn_neurips_2020_track1_small", reward_class=L2RPNReward, difficulty = '0') # ['0', '1', '2', None for default]
-    env.seed(42)
-    if not benchmark:
-        agent = PGAgent((100,), 4)
+from torch import nn as nn
 
-    scores = []
-    steps = []
-    for i in range(num_episodes):
-        done = False
-        obs = env.reset()
-        score = 0
-        step = 0
-        action_space = env.action_space
-        x = np.zeros(177, dtype=np.bool)
-        while not done:
-            if benchmark:
-                action = env.action_space()
-            else:
-                action = agent.get_action(obs.to_vect()[:100]).astype('bool')
-                x[:4] = action
-                a = action_space({'change_bus': x})
-                if a.is_ambiguous():
-                    print('Ambiguous action')
-                if action_space._is_legal(a, env):
-                    print('Illegal action')
-            obs, reward, done, info = env.step(a)
-            score += reward
-            step += 1
-        scores.append(score)
-        steps.append(step)
+from stable_baselines3.common.callbacks import EvalCallback
+from stable_baselines3.a2c import A2C
+from stable_baselines3 import PPO
+from stable_baselines3.common.cmd_util import make_vec_env
 
-        avg_score = np.mean(scores[-100:])
-        print('episode ', i, 'score %.2f' % score, 'average score %.2f' % avg_score)
+from environment import GridEnv
+from network import GridCNN
 
 
-    window = 20
-    mean_score = [elem for elem in pd.Series.rolling(pd.Series(scores), window).mean()]
+# Execution params
+EVAL_FREQ = 5000
+SEED = 42
+DISCRETE_ENV = True
+NUM_ENVS = 4
+TB_LOGS = './tb_logs/'
+MODEL_PATHS = './logs/'
+NUM_TIMESTEPS = 1e6
+LR = 0.001
+STEPS_PER_UPDATE = 5
+RUN_NAME = 'A2C_discrete'
 
-    plt.plot(scores)
-    plt.xlabel('Episode')
-    plt.ylabel('Avg. score')
-    plt.title(run_name)
-    plt.savefig('%s_score.png' % run_name)
-    plt.close()
+# Policy arguments
+policy_kwargs = dict(
+    features_extractor_class=GridCNN,
+    normalize_images=False,
+    features_extractor_kwargs=dict(features_dim=512),
+    net_arch = [128, dict(vf=[64], pi=[64, 36])],
+    activation_fn = nn.ReLU
+)
 
-    plt.plot(steps)
-    plt.xlabel('Episode')
-    plt.ylabel('Episode duration')
-    plt.title(run_name)
-    plt.savefig('%s_steps.png' % run_name)
-    plt.close()
+# Environment arguments
+env_kwargs = dict(
+    discrete = DISCRETE_ENV, 
+    seed = SEED
+)
 
-    return scores, steps
+# Environments for training and evaluation
+env = make_vec_env(GridEnv, n_envs = NUM_ENVS, env_kwargs = env_kwargs, seed = SEED)
+eval_env = GridEnv(seed = SEED // 2)
+
+# Callback for eval
+eval_callback = EvalCallback(eval_env, best_model_save_path=MODEL_PATHS,
+                            log_path=MODEL_PATHS, eval_freq=EVAL_FREQ,
+                            deterministic=True, render=False)
+
+# A2C model
+model = A2C('CnnPolicy', 
+            env,
+            learning_rate=LR,
+            n_steps=STEPS_PER_UPDATE,
+            policy_kwargs=policy_kwargs,
+            tensorboard_log = TB_LOGS, 
+            seed = SEED, 
+            verbose = 1)
+
+# Train model
+model.learn(total_timesteps = NUM_TIMESTEPS, 
+            tb_log_name=RUN_NAME, 
+            callback=eval_callback)
 
 
+#TODO
+# MultiBinary() but limit actions to belong to same stations
 
-if __name__ == '__main__':
-
-    run_name = 'benchmark_donothing_lvl0'
-    score, steps = run(run_name, 10, False)
+## Benchmark do nothing: 
+    # Episode Reward: 585.26 +/- 285.352
+    # Steps: 810.6 +/- 408.576

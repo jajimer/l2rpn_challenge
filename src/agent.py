@@ -3,25 +3,19 @@ Agent implementation.
 https://github.com/DLR-RM/stable-baselines3/blob/master/stable_baselines3/common/policies.py
 """
 
-import collections
-from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import gym
 import numpy as np
 import torch as th
 from torch import nn as nn
+from functools import partial
+from typing import Callable, Dict, List, Optional, Type, Union
 
 from stable_baselines3.common.distributions import *
-from stable_baselines3.common.torch_layers import BaseFeaturesExtractor, FlattenExtractor
 from stable_baselines3.common.policies import ActorCriticPolicy
-from stable_baselines3.a2c import A2C
-from stable_baselines3 import PPO
-from network import GridCNN, TwoHeadedNet
 
-
-def lr_(x):
-    return x
+from network import TwoHeadedNet
+from environment import GridEnv
 
 
 class MaskedBernoulli(BernoulliDistribution):
@@ -71,17 +65,22 @@ class CustomGridPolicy(ActorCriticPolicy):
         observation_space: gym.spaces.Space,
         action_space: gym.spaces.Space,
         lr_schedule: Callable[[float], float],
-        mask: np.array,
-        num_substations: int = 36,
-        **kwargs
+#        mask: np.array,
+#        num_substations: int = 36,
+        net_arch: Optional[List[Union[int, Dict[str, List[int]]]]] = None,
+        activation_fn: Type[nn.Module] = nn.Tanh,
+        *args,
+        **kwargs,
     ):
         super(CustomGridPolicy, self).__init__(
             observation_space,
             action_space,
             lr_schedule,
-            features_extractor_class=GridCNN,
-            normalize_images=False,
-            features_extractor_kwargs = kwargs)
+            net_arch,
+            activation_fn,
+            *args,
+            **kwargs
+            )
 
         # Environment information
         n_buses = action_space.n
@@ -97,6 +96,7 @@ class CustomGridPolicy(ActorCriticPolicy):
         """
         # Policy and value networks
         self.mlp_extractor = TwoHeadedNet(self.features_dim)
+#        self.mlp_extractor = MlpExtractor(self.features_dim, net_arch=self.net_arch, activation_fn=self.activation_fn)
         latent_dim_pi = self.mlp_extractor.latent_dim_pi
         self.action_net = self.action_dist.proba_distribution_net(latent_dim_pi)
         self.value_net = nn.Linear(self.mlp_extractor.latent_dim_vf, 1)
@@ -125,9 +125,23 @@ class CustomGridPolicy(ActorCriticPolicy):
         return self.action_dist.proba_distribution(latent_pi, mean_actions)
 
 
-if __name__ == '__main__':
-    from environment import GridEnv
-    env = GridEnv()
-    agent = CustomGridPolicy(env.observation_space, env.action_space, lr_, mask = env.mask)
-    model = A2C(agent, env)
-    model.learn(10)
+def benchmark_do_nothing():
+	env = GridEnv()
+	total_rewards = []
+	total_steps = []
+	a = np.zeros(177, dtype = np.bool)
+	for i in range(10):
+		obs = env.reset()
+		reward = 0
+		steps = 0
+		done = False
+		while not done:
+			_, r, done, _ = env.step(a)
+			reward += r
+			steps += 1
+		print(i, reward, steps)
+		total_rewards.append(reward)
+		total_steps.append(steps)	
+	print("Mean reward: %.3f +/- %.3f" % (np.mean(total_rewards), np.std(total_rewards)))
+	print("Mean steps: %.3f +/- %.3f" % (np.mean(total_steps), np.std(total_steps)))
+	return total_rewards, total_steps

@@ -3,8 +3,8 @@ CNN implementation. Takes the Graph Matrix and returns a latent vector.
 https://github.com/DLR-RM/stable-baselines3/blob/master/stable_baselines3/common/torch_layers.py
 """
 
-from itertools import zip_longest
-from typing import Dict, List, Tuple, Type, Union
+
+from typing import Tuple
 import gym
 import torch as th
 from torch import nn as nn
