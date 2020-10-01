@@ -12,3 +12,4 @@ L2RPN challenge
  - Hyperparameter tuning
  - See how to transform from sb3 model to pure torch (for inference)
  - Log the distribution of selected actions
+ - Include change_status actions
