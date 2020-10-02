@@ -8,7 +8,7 @@ numpy==1.18.5
 pandas==1.1.0
 scipy==1.4.1
 seaborn==0.10.1
-stable-baselines3
 tensorboard==2.3.0
 torch==1.6.0
 numba==0.51.0
+git+git://github.com/DLR-RM/stable-baselines3@2c924f5

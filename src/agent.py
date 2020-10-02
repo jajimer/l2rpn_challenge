@@ -13,8 +13,9 @@ from typing import Callable, Dict, List, Optional, Type, Union
 
 from stable_baselines3.common.distributions import *
 from stable_baselines3.common.policies import ActorCriticPolicy
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
-from network import TwoHeadedNet
+from network import CustomNetwork, GridCNN
 from environment import GridEnv
 
 
@@ -24,84 +25,84 @@ class MaskedBernoulli(BernoulliDistribution):
     :param action_dim: (int) Number of binary actions
     """
 
-    def __init__(self, action_dim: int, subaction_dim: int, mask: th.Tensor):
-        super(MaskedBernoulli, self).__init__(action_dim)
+    def __init__(self, action_dim: int, subaction_dim: int, mask):
+        super(MaskedBernoulli, self).__init__(subaction_dim)
         self.distribution = None
         self.action_dims = action_dim
         self.subaction_dim = subaction_dim
         self.list_rows = [i for i in range(action_dim)]
         self.mask = mask
 
-    def proba_distribution_net(self, action_dim: int) -> nn.Module:
+    def proba_distribution_net(self, latent_dim: int) -> nn.Module:
         """
         Create the layer that represents the distribution.
         """
         subaction_logits = nn.Sequential(
-            nn.Linear(action_dim, self.subaction_dim),
+            nn.Linear(latent_dim, self.subaction_dim),
             nn.Sigmoid()
         )
         return subaction_logits
 
     def proba_distribution(self, action_logits: th.Tensor, subaction_logits: th.Tensor):
         # Get prob of each action
-        probs = action_logits.detach().numpy().reshape(-1,)
-        ix = np.random.choice(self.list_rows, p = probs)
+        probs = action_logits.detach().numpy()
+        # Select substations
+        indexes = [np.random.choice(self.list_rows, p = p) for p in probs]
         # Construct the action vector
-        subaction_logits_masked = subaction_logits * self.mask[ix]
-        self.distribution = Bernoulli(logits=subaction_logits_masked)
+        subaction_logits_masked = subaction_logits * self.mask[indexes,:]
+        self.distribution = Bernoulli(probs=subaction_logits_masked)
         return self
 
 
 class CustomGridPolicy(ActorCriticPolicy):
-    """
-    Policy class for actor-critic algorithms. Used by A2C, PPO and the likes.
-    :param env: (gym.Env) Gym environment
-    :param lr_schedule: (Callable) Learning rate schedule (could be constant)
-    :param masking:
-    """
 
     def __init__(
         self,
         observation_space: gym.spaces.Space,
         action_space: gym.spaces.Space,
-        lr_schedule: Callable[[float], float],
-#        mask: np.array,
-#        num_substations: int = 36,
+        lr_schedule: Callable,
+        mask,
         net_arch: Optional[List[Union[int, Dict[str, List[int]]]]] = None,
         activation_fn: Type[nn.Module] = nn.Tanh,
-        *args,
-        **kwargs,
+        ortho_init: bool = True,
+        use_sde: bool = False,
+        log_std_init: float = 0.0,
+        full_std: bool = True,
+        sde_net_arch: Optional[List[int]] = None,
+        use_expln: bool = False,
+        squash_output: bool = False,
+        features_extractor_class: Type[BaseFeaturesExtractor] = GridCNN,
+        features_extractor_kwargs: Optional[Dict[str, Any]] = None,
+        normalize_images: bool = False,
+        optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
+        optimizer_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        ortho_init_super = False
         super(CustomGridPolicy, self).__init__(
             observation_space,
             action_space,
             lr_schedule,
             net_arch,
             activation_fn,
-            *args,
-            **kwargs
-            )
-
-        # Environment information
-        n_buses = action_space.n
+            ortho_init_super,
+            use_sde,
+            log_std_init,
+            full_std,
+            sde_net_arch,
+            use_expln,
+            squash_output,
+            features_extractor_class,
+            features_extractor_kwargs,
+            normalize_images,
+            optimizer_class,
+            optimizer_kwargs,
+        )
         # Action distribution
-        self.action_dist = MaskedBernoulli(num_substations, n_buses, th.as_tensor(mask))
-        self._build_custom(lr_schedule)
-
-    def _build_custom(self, lr_schedule: Callable[[float], float]) -> None:
-        """
-        Create the networks and the optimizer.
-        :param lr_schedule: (Callable) Learning rate schedule
-            lr_schedule(1) is the initial learning rate
-        """
-        # Policy and value networks
-        self.mlp_extractor = TwoHeadedNet(self.features_dim)
-#        self.mlp_extractor = MlpExtractor(self.features_dim, net_arch=self.net_arch, activation_fn=self.activation_fn)
-        latent_dim_pi = self.mlp_extractor.latent_dim_pi
-        self.action_net = self.action_dist.proba_distribution_net(latent_dim_pi)
-        self.value_net = nn.Linear(self.mlp_extractor.latent_dim_vf, 1)
-        # Init weights: use orthogonal initialization
-        if self.ortho_init:
+        self.action_dist = MaskedBernoulli(36, 177, th.as_tensor(mask))
+        latent_dim = self.mlp_extractor.latent_dim_pi
+        self.action_net = self.action_dist.proba_distribution_net(latent_dim=latent_dim)
+        # Init weights: orthogonal initialization with small initial weight for output
+        if ortho_init:
             module_gains = {
                 self.features_extractor: np.sqrt(2),
                 self.mlp_extractor: np.sqrt(2),
@@ -110,17 +111,16 @@ class CustomGridPolicy(ActorCriticPolicy):
             }
             for module, gain in module_gains.items():
                 module.apply(partial(self.init_weights, gain=gain))
+
         # Setup optimizer with initial learning rate
-        self.optimizer = self.optimizer_class(self.parameters(), lr=lr_schedule(1), **self.optimizer_kwargs)
+        self.optimizer = optimizer_class(self.parameters(), lr=lr_schedule(1), **self.optimizer_kwargs)
 
-
-    def _get_action_dist_from_latent(self, latent_pi: th.Tensor, latent_sde: Optional[th.Tensor] = None) -> Distribution:
-        """
-        Retrieve action distribution given the latent codes.
-        :param latent_pi: (th.Tensor) Latent code for the actor
-        :param latent_sde: (Optional[th.Tensor]) Latent code for the gSDE exploration function
-        :return: (Distribution) Action distribution
-        """
+    def _build_mlp_extractor(self) -> None:
+        # Se ejecuta en el __init__ de super()
+        self.mlp_extractor = CustomNetwork(self.features_dim)
+        
+    def _get_action_dist_from_latent(self, latent_pi: th.Tensor, 
+            latent_sde: Optional[th.Tensor] = None) -> Distribution:
         mean_actions = self.action_net(latent_pi)
         return self.action_dist.proba_distribution(latent_pi, mean_actions)
 

@@ -41,60 +41,44 @@ class GridCNN(BaseFeaturesExtractor):
         return self.linear(self.cnn(observations))
 
 
-class TwoHeadedNet(nn.Module):
+class CustomNetwork(nn.Module):
     """
-    Constructs the Policy and Value heads from the feature vector.
-    :param feature_dim: (int) Dimension of the feature vector (can be the output of a CNN)
-    :param device: (th.device)
+    Custom network for policy and value function.
+    It receives as input the features extracted by the feature extractor.
+
+    :param feature_dim: dimension of the features extracted with the features_extractor (e.g. features from a CNN)
+    :param last_layer_dim_pi: (int) number of units for the last layer of the policy network
+    :param last_layer_dim_vf: (int) number of units for the last layer of the value network
     """
 
-    def __init__(self, feature_dim: int = 512, policy_dim: int = 36):
-        super(TwoHeadedNet, self).__init__()
-        
-        device = th.device('cuda' if th.cuda.is_available() else 'cpu')
-        self.feature_dim = feature_dim
-        self.policy_dim = policy_dim
+    def __init__(
+        self,
+        feature_dim: int,
+        last_layer_dim_pi: int = 36,
+        last_layer_dim_vf: int = 64,
+    ):
+        super(CustomNetwork, self).__init__()
 
-        # Create networks
+        # Save output dimensions, used to create the distributions
+        self.latent_dim_pi = last_layer_dim_pi
+        self.latent_dim_vf = last_layer_dim_vf
+
+        # Policy network
         self.policy_net = nn.Sequential(
-            nn.Linear(self.feature_dim, 64),
+            nn.Linear(feature_dim, 128),
             nn.ReLU(),
-            nn.Linear(64, self.policy_dim),
-            nn.Softmax(1)
-        ).to(device)
-
+            nn.Linear(128, last_layer_dim_pi),
+            nn.Softmax(1),
+        )
+        # Value network
         self.value_net = nn.Sequential(
-            nn.Linear(self.feature_dim, 64),
+            nn.Linear(feature_dim, last_layer_dim_vf), 
             nn.ReLU()
-        ).to(device)
-
-        # Save dim, used to create the distributions
-        self.latent_dim_pi, self.latent_dim_vf = self._get_final_dims()
+        )
 
     def forward(self, features: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
         """
         :return: (th.Tensor, th.Tensor) latent_policy, latent_value of the specified network.
+            If all layers are shared, then ``latent_policy == latent_value``
         """
         return self.policy_net(features), self.value_net(features)
-
-    def _get_final_dims(self):
-        """
-        :return: ((int, int), int) Shape of the final layers.
-        """
-        with th.no_grad():
-            x = th.randn(1, self.feature_dim)
-            pi, v = self.forward(x)
-        return pi.shape[1], v.shape[1]
-
-
-if __name__ == '__main__':
-    from environment import GridEnv
-    env = GridEnv()
-    cnn = GridCNN(env.observation_space)
-    net = TwoHeadedNet()
-    x = th.as_tensor(env.observation_space.sample()[None])
-    features = cnn(x)
-    print(features.shape)
-    pi, v = net(features)
-    print(net.latent_dim_pi, net.latent_dim_vf)
-    print(pi)
