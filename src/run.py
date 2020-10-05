@@ -54,13 +54,13 @@ model = A2C(CustomGridPolicy,
             gamma=GAMMA,
             gae_lambda=LAMBDA,
             policy_kwargs=policy_kwargs,
-            tensorboard_log = TB_LOGS, 
+#            tensorboard_log = TB_LOGS, 
             seed = SEED, 
             verbose = 2)
 
 # Train model
-model.learn(total_timesteps = NUM_TIMESTEPS, 
-            tb_log_name=RUN_NAME, 
+model.learn(total_timesteps = 1000, 
+#            tb_log_name=RUN_NAME, 
             callback=eval_callback
 )
 
