@@ -68,6 +68,12 @@ model.learn(total_timesteps = 1000,
 ## Benchmark do nothing: 
     # Episode Reward: 585.26 +/- 285.352
     # Episode length: 810.6 +/- 408.576
+## Benchmark random discrete: 
+    # Episode Reward: 0.434 +/- 1.795
+    # Episode length: 3.100 +/- 2.663
+## Benchmark random multibinary: 
+    # Episode Reward: 1.297 +/- 1.849
+    # Episode length: 4.600 +/- 2.871
 
 
 # https://discuss.pytorch.org/t/implement-selected-sparse-connected-neural-network/45517/2

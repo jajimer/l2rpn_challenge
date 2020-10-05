@@ -145,3 +145,45 @@ def benchmark_do_nothing():
 	print("Mean reward: %.3f +/- %.3f" % (np.mean(total_rewards), np.std(total_rewards)))
 	print("Mean steps: %.3f +/- %.3f" % (np.mean(total_steps), np.std(total_steps)))
 	return total_rewards, total_steps
+
+
+def benchmark_random_discrete():
+	env = GridEnv(discrete = True)
+	total_rewards = []
+	total_steps = []
+	for i in range(10):
+		obs = env.reset()
+		reward = 0
+		steps = 0
+		done = False
+		while not done:
+			_, r, done, _ = env.step(env.action_space.sample())
+			reward += r
+			steps += 1
+		print(i, reward, steps)
+		total_rewards.append(reward)
+		total_steps.append(steps)	
+	print("Mean reward: %.3f +/- %.3f" % (np.mean(total_rewards), np.std(total_rewards)))
+	print("Mean steps: %.3f +/- %.3f" % (np.mean(total_steps), np.std(total_steps)))
+	return total_rewards, total_steps
+
+
+def benchmark_random_multibinary(model):
+	env = GridEnv(discrete = False)
+	total_rewards = []
+	total_steps = []
+	for i in range(10):
+		obs = env.reset()
+		reward = 0
+		steps = 0
+		done = False
+		while not done:
+			_, r, done, _ = env.step(model.predict(obs)[0])
+			reward += r
+			steps += 1
+		print(i, reward, steps)
+		total_rewards.append(reward)
+		total_steps.append(steps)	
+	print("Mean reward: %.3f +/- %.3f" % (np.mean(total_rewards), np.std(total_rewards)))
+	print("Mean steps: %.3f +/- %.3f" % (np.mean(total_steps), np.std(total_steps)))
+	return total_rewards, total_steps
