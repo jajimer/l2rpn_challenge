@@ -47,6 +47,8 @@ def main():
     parser.add_argument('--use_adam', help="Use Adam in A2C (RMSPROP otherwise)", action='store_true')
     parser.add_argument('--norm_adv', help="Normalize advantage", action='store_true')
     parser.add_argument("--total_steps", help="Number of total steps", type=float, default=1e6)
+    parser.add_argument('--use_backend', action='store_true')
+
     args = parser.parse_args()
 
     # Execution params
@@ -73,11 +75,11 @@ def main():
     log.info(str(args)[10:-1])
 
     # Environment arguments
-    env_kwargs = dict(discrete = args.discrete, seed = SEED)
+    env_kwargs = dict(discrete = args.discrete, seed = SEED, use_backend = args.use_backend)
 
     # Environments for training and evaluation
     env = make_vec_env(GridEnv, n_envs = args.n, env_kwargs = env_kwargs, seed = SEED)
-    eval_env = GridEnv(discrete = args.discrete, seed = SEED // 2)
+    eval_env = GridEnv(discrete = args.discrete, seed = SEED // 2, use_backend = args.use_backend)
 
     # Callback for eval
     eval_callback = EvalCallback(eval_env, best_model_save_path=log_path,
@@ -129,7 +131,7 @@ def main():
     model.learn(total_timesteps = args.total_steps, 
         tb_log_name=exp_id, 
         callback=eval_callback)
-    
+    log.info('Done!')
     return True
 
 
