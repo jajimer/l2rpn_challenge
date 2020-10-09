@@ -1,5 +1,7 @@
 track1_starting_kit/
 docs/
+logs/
+tb_logs/
 getting_started/
 .ipynb_checkpoints/
 __pycache__/

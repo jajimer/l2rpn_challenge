@@ -98,7 +98,7 @@ class CustomGridPolicy(ActorCriticPolicy):
             optimizer_kwargs,
         )
         # Action distribution
-        self.action_dist = MaskedBernoulli(36, 177, th.as_tensor(mask))
+        self.action_dist = MaskedBernoulli(mask.shape[0], mask.shape[1], th.as_tensor(mask))
         latent_dim = self.mlp_extractor.latent_dim_pi
         self.action_net = self.action_dist.proba_distribution_net(latent_dim=latent_dim)
         # Init weights: orthogonal initialization with small initial weight for output
@@ -119,8 +119,7 @@ class CustomGridPolicy(ActorCriticPolicy):
         # Se ejecuta en el __init__ de super()
         self.mlp_extractor = CustomNetwork(self.features_dim)
         
-    def _get_action_dist_from_latent(self, latent_pi: th.Tensor, 
-            latent_sde: Optional[th.Tensor] = None) -> Distribution:
+    def _get_action_dist_from_latent(self, latent_pi: th.Tensor, latent_sde: Optional[th.Tensor] = None) -> Distribution:
         mean_actions = self.action_net(latent_pi)
         return self.action_dist.proba_distribution(latent_pi, mean_actions)
 

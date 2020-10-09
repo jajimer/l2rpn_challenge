@@ -2,8 +2,11 @@
 Execute the model.
 """
 
-
-from torch import nn as nn
+import logging
+import sys
+import os
+import argparse
+from datetime import datetime
 
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.a2c import A2C
@@ -15,67 +18,121 @@ from network import GridCNN
 from agent import CustomGridPolicy
 
 
-# Execution params
-EVAL_FREQ = 1000
-SEED = 42
-DISCRETE_ENV = False
-NUM_ENVS = 4
-TB_LOGS = './tb_logs/'
-MODEL_PATHS = './logs/'
-NUM_TIMESTEPS = 1e5
-LR = 0.0009
-GAMMA = 0.9
-LAMBDA = 0.9
-STEPS_PER_UPDATE = 10
-RUN_NAME = 'A2C_multibinary'
+class Logger(object):
+    def __init__(self, logfile):
+        self.terminal = sys.stdout
+        self.log = open(logfile, "a")
 
-# Environment arguments
-env_kwargs = dict(
-    discrete = DISCRETE_ENV, 
-    seed = SEED
-)
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)  
 
-# Environments for training and evaluation
-env = make_vec_env(GridEnv, n_envs = NUM_ENVS, env_kwargs = env_kwargs, seed = SEED)
-eval_env = GridEnv(discrete = DISCRETE_ENV, seed = SEED // 2)
-policy_kwargs = dict(mask=eval_env.actuator.mask)
-
-# Callback for eval
-eval_callback = EvalCallback(eval_env, best_model_save_path=MODEL_PATHS,
-                            log_path=MODEL_PATHS, eval_freq=EVAL_FREQ,
-                            deterministic=True, render=False)
+    def flush(self):
+        pass    
 
 
-# A2C model
-model = A2C(CustomGridPolicy, 
-            env,
-            learning_rate=LR,
-            n_steps=STEPS_PER_UPDATE,
-            gamma=GAMMA,
-            gae_lambda=LAMBDA,
-            policy_kwargs=policy_kwargs,
-#            tensorboard_log = TB_LOGS, 
-            seed = SEED, 
-            verbose = 2)
+def main():
+    """"""
+    # Add arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--algo", help="Algorithm", type=str, default='A2C')
+    parser.add_argument('--discrete', action='store_true')
+    parser.add_argument("--n", help="Number of environments", type=int, default=4)
+    parser.add_argument("--lr", help="Learning rate", type=float, default=1e-4)
+    parser.add_argument("--update_steps", help="Number of steps per update", type=int, default=5)
+    parser.add_argument("--gamma", help="Discount factor", type=float, default=0.99)
+    parser.add_argument("--gae", help="GAE factor", type=float, default=1.0)
+    parser.add_argument("--coef_ent", help="Entropy coefficient", type=float, default=0.01)
+    parser.add_argument("--coef_vf", help="V(s) coefficient", type=float, default=0.5)
+    parser.add_argument('--use_adam', help="Use Adam in A2C (RMSPROP otherwise)", action='store_true')
+    parser.add_argument('--norm_adv', help="Normalize advantage", action='store_true')
+    parser.add_argument("--total_steps", help="Number of total steps", type=float, default=1e6)
+    args = parser.parse_args()
 
-# Train model
-model.learn(total_timesteps = 1000, 
-#            tb_log_name=RUN_NAME, 
-            callback=eval_callback
-)
+    # Execution params
+    SEED = 42
+    EVAL_FREQ = 1000
+    TB_LOGS = './tb_logs/'
+    MODEL_PATHS = './logs/'
+
+    # Log
+    str_discrete = '_discrete_' if args.discrete else '_multibinary_'
+    exp_id = str(args.algo) + str(args.n) + str_discrete + datetime.now().strftime('%Y%m%d%H%M')
+    log_path = MODEL_PATHS + exp_id
+    log_file = '%s/params.log' % log_path
+    if not os.path.exists(log_path):
+        os.makedirs(log_path)
+#    sys.stdout = Logger(LOGFILE)
+    log = logging.getLogger(exp_id)
+    log.setLevel(logging.INFO)
+    hdlr = logging.FileHandler(log_file, mode='a')
+    formatter = logging.Formatter(fmt='%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    hdlr.setFormatter(formatter)
+    log.addHandler(hdlr)
+    log.info('Experimento %s creado.' % exp_id)
+    log.info(str(args)[10:-1])
+
+    # Environment arguments
+    env_kwargs = dict(discrete = args.discrete, seed = SEED)
+
+    # Environments for training and evaluation
+    env = make_vec_env(GridEnv, n_envs = args.n, env_kwargs = env_kwargs, seed = SEED)
+    eval_env = GridEnv(discrete = args.discrete, seed = SEED // 2)
+
+    # Callback for eval
+    eval_callback = EvalCallback(eval_env, best_model_save_path=log_path,
+                                log_path=log_path, eval_freq=EVAL_FREQ,
+                                deterministic=True, render=False)
+
+    # Policy arguments
+    if args.discrete:
+        policy_kwargs = dict(
+            features_extractor_class=GridCNN,
+            normalize_images=False,
+            features_extractor_kwargs=dict(features_dim=512),
+            net_arch = [128, dict(vf=[64], pi=[64, 36])]
+        )
+        policy = 'CnnPolicy'
+    else:
+        policy_kwargs = dict(mask=eval_env.actuator.mask) #, optimizer_kwargs = dict(weight_decay = 0.5))
+        policy = CustomGridPolicy
+
+    # Model
+    if args.algo == 'A2C':
+        model = A2C(policy, 
+                    env,
+                    learning_rate=args.lr,
+                    n_steps=args.update_steps,
+                    gamma=args.gamma,
+                    gae_lambda=args.gae,
+                    ent_coef=args.coef_ent,
+                    vf_coef=args.coef_vf,
+                    use_rms_prop=not args.use_adam,
+                    normalize_advantage=args.norm_adv,
+                    policy_kwargs=policy_kwargs,
+                    tensorboard_log = TB_LOGS, 
+                    seed = SEED, 
+                    verbose = 2)
+    else:
+        model = PPO(policy, env,
+                    n_steps=args.update_steps,
+                    learning_rate=args.lr,
+                    gamma=args.gamma,
+                    gae_lambda=args.gae,
+                    ent_coef=args.coef_ent,
+                    vf_coef=args.coef_vf,
+                    policy_kwargs=policy_kwargs,
+                    tensorboard_log = TB_LOGS, 
+                    seed = SEED, 
+                    verbose = 2)
+    # Train model
+    model.learn(total_timesteps = args.total_steps, 
+        tb_log_name=exp_id, 
+        callback=eval_callback)
+    
+    return True
 
 
-## Benchmark do nothing: 
-    # Episode Reward: 585.26 +/- 285.352
-    # Episode length: 810.6 +/- 408.576
-## Benchmark random discrete: 
-    # Episode Reward: 0.434 +/- 1.795
-    # Episode length: 3.100 +/- 2.663
-## Benchmark random multibinary: 
-    # Episode Reward: 1.297 +/- 1.849
-    # Episode length: 4.600 +/- 2.871
+if __name__ == "__main__":
+    main()
 
-
-# https://discuss.pytorch.org/t/implement-selected-sparse-connected-neural-network/45517/2
-# https://discuss.pytorch.org/t/network-custom-connections-paired-connections-performance-issue/11713
-# https://discuss.pytorch.org/t/how-to-build-a-custom-connections/64368/3 <<--
