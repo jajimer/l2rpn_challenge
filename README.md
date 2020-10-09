@@ -12,3 +12,11 @@ L2RPN challenge
  - See how to transform from sb3 model to pure torch (for inference)
  - Log the distribution of selected actions
  - Include change_status actions
+
+### Benchmarks
+
+| Benchmark | Avg. episode reward | Avg. episode length |
+| ----------| ------------------- | ------------------- |
+| Do nothing | 585.3 (285.4) |  810.6 (408.6) |
+| Random discrete | 0.434 (1.795) | 3.1 (2.7) |
+| Random multibinary | 1.3 (1.8) | 4.6 (2.9) |
