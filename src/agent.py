@@ -31,7 +31,10 @@ class MaskedBernoulli(BernoulliDistribution):
         self.action_dims = action_dim
         self.subaction_dim = subaction_dim
         self.list_rows = [i for i in range(action_dim)]
-        self.mask = mask
+        if th.cuda.is_available():
+            self.mask = mask.cuda()
+        else:
+            self.mask = mask
 
     def proba_distribution_net(self, latent_dim: int) -> nn.Module:
         """
