@@ -44,10 +44,8 @@ class MaskedBernoulli(BernoulliDistribution):
         return subaction_logits
 
     def proba_distribution(self, action_logits: th.Tensor, subaction_logits: th.Tensor):
-        # Get prob of each action
-        probs = action_logits.detach().numpy()
         # Select substations
-        indexes = [np.random.choice(self.list_rows, p = p) for p in probs]
+        indexes = th.multinomial(action_logits, 1, replacement=True).view(-1)
         # Construct the action vector
         subaction_logits_masked = subaction_logits * self.mask[indexes,:]
         self.distribution = Bernoulli(probs=subaction_logits_masked)
