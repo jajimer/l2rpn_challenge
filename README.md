@@ -20,3 +20,7 @@ L2RPN challenge
 | Do nothing | 585.3 (285.4) |  810.6 (408.6) |
 | Random discrete | 0.434 (1.795) | 3.1 (2.7) |
 | Random multibinary | 1.3 (1.8) | 4.6 (2.9) |
+
+### Notes
+
+Tensorboard on GCP: tensoarbord --logdir tb_logs/ --port 6006 --bind_all and then <external_ip>:6006 in browser

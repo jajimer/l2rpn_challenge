@@ -48,7 +48,6 @@ def main():
     parser.add_argument('--norm_adv', help="Normalize advantage", action='store_true')
     parser.add_argument("--total_steps", help="Number of total steps", type=float, default=1e6)
     parser.add_argument('--use_backend', action='store_true')
-
     args = parser.parse_args()
 
     # Execution params
