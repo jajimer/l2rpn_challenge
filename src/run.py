@@ -8,7 +8,7 @@ import os
 import argparse
 from datetime import datetime
 
-from stable_baselines3.common.callbacks import EvalCallback
+from stable_baselines3.common.callbacks import EvalCallback, CallbackList, EveryNTimesteps
 from stable_baselines3.a2c import A2C
 from stable_baselines3 import PPO
 from stable_baselines3.common.cmd_util import make_vec_env
@@ -16,6 +16,7 @@ from stable_baselines3.common.cmd_util import make_vec_env
 from environment import GridEnv
 from network import GridCNN
 from agent import CustomGridPolicy
+from utils import TensorboardCallback
 
 
 class Logger(object):
@@ -70,7 +71,7 @@ def main():
     formatter = logging.Formatter(fmt='%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     hdlr.setFormatter(formatter)
     log.addHandler(hdlr)
-    log.info('Experimento %s creado.' % exp_id)
+    log.info('Experiment %s created.' % exp_id)
     log.info(str(args)[10:-1])
 
     # Environment arguments
@@ -80,10 +81,13 @@ def main():
     env = make_vec_env(GridEnv, n_envs = args.n, env_kwargs = env_kwargs, seed = SEED)
     eval_env = GridEnv(discrete = args.discrete, seed = SEED // 2, use_backend = args.use_backend)
 
-    # Callback for eval
+    # Callbacks for eval and logging
     eval_callback = EvalCallback(eval_env, best_model_save_path=log_path,
                                 log_path=log_path, eval_freq=EVAL_FREQ,
                                 deterministic=True, render=False)
+
+    event_callback = EveryNTimesteps(n_steps=100, callback=TensorboardCallback())
+    callbacks = CallbackList([eval_callback, event_callback])
 
     # Policy arguments
     if args.discrete:
@@ -126,10 +130,11 @@ def main():
                     tensorboard_log = TB_LOGS, 
                     seed = SEED, 
                     verbose = 2)
+
     # Train model
     model.learn(total_timesteps = args.total_steps, 
-        tb_log_name=exp_id, 
-        callback=eval_callback)
+        tb_log_name=exp_id,
+        callback=callbacks)
     log.info('Done!')
     return True
 

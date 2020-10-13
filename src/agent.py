@@ -41,14 +41,16 @@ class MaskedBernoulli(BernoulliDistribution):
         Create the layer that represents the distribution.
         """
         subaction_logits = nn.Sequential(
-            nn.Linear(latent_dim, self.subaction_dim),
+            nn.Linear(latent_dim, self.subaction_dim, bias = True),
             nn.Sigmoid()
         )
         return subaction_logits
 
     def proba_distribution(self, action_logits: th.Tensor, subaction_logits: th.Tensor):
         # Select substations
+        action_logits = (action_logits + 1.0)/2.0
         indexes = th.multinomial(action_logits, 1, replacement=True).view(-1)
+        print(indexes)
         # Construct the action vector
         subaction_logits_masked = subaction_logits * self.mask[indexes,:]
         self.distribution = Bernoulli(probs=subaction_logits_masked)
@@ -107,8 +109,8 @@ class CustomGridPolicy(ActorCriticPolicy):
             module_gains = {
                 self.features_extractor: np.sqrt(2),
                 self.mlp_extractor: np.sqrt(2),
-                self.action_net: 0.01,
-                self.value_net: 1,
+                self.action_net: np.sqrt(2),
+                self.value_net: np.sqrt(2),
             }
             for module, gain in module_gains.items():
                 module.apply(partial(self.init_weights, gain=gain))
