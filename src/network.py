@@ -66,7 +66,6 @@ class GridCNN(BaseFeaturesExtractor):
         H, A_  = self.conv1(A, X)
         H2, _ = self.conv2(A_, H) # Not sure if here I should put A or A_
         out = self.linear(self.cnn(H2.unsqueeze(1)))
-        print(out.shape)
         return out
 
 
