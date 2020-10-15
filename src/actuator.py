@@ -39,7 +39,7 @@ def create_action_array(env, N=100, ratios = {'default': 0.0}):
             n += 1
         it += 1
         if it % 10 == 0:
-            print('### %d/%d ###' % (n, N))
+            print('### %d/%d with %d actions still available###' % (n, N, len(topology)))
             print(current_ratios)
     print('Done! %d actions selected' % actions_array.shape[1])
     return actions_array
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     import grid2op
     env_name = "l2rpn_neurips_2020_track1_small"
     env = grid2op.make(env_name)
-    ratios = {16: 0.4, 26: 0.1, 23: 0.1, 21: 0.1, 4: 0.1}
+    ratios = {16: 0.4, 26: 0.1, 23: 0.1, 21: 0.1}
     N = 190
     actions = create_action_array(env, N, ratios)
     np.savez_compressed('actions_topo_array.npz', actions_array=actions)
