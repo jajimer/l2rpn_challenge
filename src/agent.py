@@ -64,7 +64,6 @@ class CustomGridPolicy(ActorCriticPolicy):
         observation_space: gym.spaces.Space,
         action_space: gym.spaces.Space,
         lr_schedule: Callable,
-        mask,
         net_arch: Optional[List[Union[int, Dict[str, List[int]]]]] = None,
         activation_fn: Type[nn.Module] = nn.Tanh,
         ortho_init: bool = True,
@@ -80,14 +79,13 @@ class CustomGridPolicy(ActorCriticPolicy):
         optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[Dict[str, Any]] = None,
     ):
-        ortho_init_super = False
         super(CustomGridPolicy, self).__init__(
             observation_space,
             action_space,
             lr_schedule,
             net_arch,
             activation_fn,
-            ortho_init_super,
+            ortho_init,
             use_sde,
             log_std_init,
             full_std,
@@ -100,31 +98,10 @@ class CustomGridPolicy(ActorCriticPolicy):
             optimizer_class,
             optimizer_kwargs,
         )
-        # Action distribution
-        self.action_dist = MaskedBernoulli(mask.shape[0], mask.shape[1], th.as_tensor(mask))
-        latent_dim = self.mlp_extractor.latent_dim_pi
-        self.action_net = self.action_dist.proba_distribution_net(latent_dim=latent_dim)
-        # Init weights: orthogonal initialization with small initial weight for output
-        if ortho_init:
-            module_gains = {
-                self.features_extractor: np.sqrt(2),
-                self.mlp_extractor: np.sqrt(2),
-                self.action_net: np.sqrt(2),
-                self.value_net: np.sqrt(2),
-            }
-            for module, gain in module_gains.items():
-                module.apply(partial(self.init_weights, gain=gain))
-
-        # Setup optimizer with initial learning rate
-        self.optimizer = optimizer_class(self.parameters(), lr=lr_schedule(1), **self.optimizer_kwargs)
 
     def _build_mlp_extractor(self) -> None:
         # Se ejecuta en el __init__ de super()
         self.mlp_extractor = CustomNetwork(self.features_dim)
-        
-    def _get_action_dist_from_latent(self, latent_pi: th.Tensor, latent_sde: Optional[th.Tensor] = None) -> Distribution:
-        mean_actions = self.action_net(latent_pi)
-        return self.action_dist.proba_distribution(latent_pi, mean_actions)
 
 
 def benchmark_do_nothing():

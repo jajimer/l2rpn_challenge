@@ -19,25 +19,11 @@ from agent import CustomGridPolicy
 from utils import TensorboardCallback
 
 
-class Logger(object):
-    def __init__(self, logfile):
-        self.terminal = sys.stdout
-        self.log = open(logfile, "a")
-
-    def write(self, message):
-        self.terminal.write(message)
-        self.log.write(message)  
-
-    def flush(self):
-        pass    
-
-
 def main():
     """"""
     # Add arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--algo", help="Algorithm", type=str, default='A2C')
-    parser.add_argument('--discrete', action='store_true')
     parser.add_argument("--n", help="Number of environments", type=int, default=4)
     parser.add_argument("--lr", help="Learning rate", type=float, default=1e-4)
     parser.add_argument("--update_steps", help="Number of steps per update", type=int, default=5)
@@ -58,8 +44,7 @@ def main():
     MODEL_PATHS = './logs/'
 
     # Log
-    str_discrete = '_discrete_' if args.discrete else '_multibinary_'
-    exp_id = str(args.algo) + str(args.n) + str_discrete + datetime.now().strftime('%Y%m%d%H%M')
+    exp_id = str(args.algo) + str(args.n) + datetime.now().strftime('%Y%m%d%H%M')
     log_path = MODEL_PATHS + exp_id
     log_file = '%s/params.log' % log_path
     if not os.path.exists(log_path):
@@ -75,11 +60,12 @@ def main():
     log.info(str(args)[10:-1])
 
     # Environment arguments
-    env_kwargs = dict(discrete = args.discrete, seed = SEED, use_backend = args.use_backend)
+    env_kwargs = dict(seed = SEED, use_backend = args.use_backend)
 
     # Environments for training and evaluation
     env = make_vec_env(GridEnv, n_envs = args.n, env_kwargs = env_kwargs, seed = SEED)
-    eval_env = GridEnv(discrete = args.discrete, seed = SEED // 2, use_backend = args.use_backend)
+    eval_env = GridEnv(seed = SEED // 2, use_backend = args.use_backend)
+    log.info('Number of available actions: %d' % eval_env.action_space.n)
 
     # Callbacks for eval and logging
     eval_callback = EvalCallback(eval_env, best_model_save_path=log_path,
@@ -90,17 +76,8 @@ def main():
     callbacks = CallbackList([eval_callback, event_callback])
 
     # Policy arguments
-    if args.discrete:
-        policy_kwargs = dict(
-            features_extractor_class=GridCNN,
-            normalize_images=False,
-            features_extractor_kwargs=dict(features_dim=512),
-            net_arch = [128, dict(vf=[64], pi=[64, 36])]
-        )
-        policy = 'CnnPolicy'
-    else:
-        policy_kwargs = dict(mask=eval_env.actuator.mask) #, optimizer_kwargs = dict(weight_decay = 0.5))
-        policy = CustomGridPolicy
+    policy_kwargs = {} #dict(optimizer_kwargs = dict(weight_decay = 0.5))
+    policy = CustomGridPolicy
 
     # Model
     if args.algo == 'A2C':

@@ -15,7 +15,7 @@ from actuator import Actuator
 
 
 class GridEnv(gym.Env):
-    def __init__(self, env_name = "l2rpn_neurips_2020_track1_small", discrete = False, 
+    def __init__(self, env_name = "l2rpn_neurips_2020_track1_small",
                  seed = 42, use_backend = False, env_config = None):
         super(GridEnv, self).__init__()
         # Instance of the grid2op env
@@ -27,17 +27,12 @@ class GridEnv(gym.Env):
             self.env_ = grid2op.make(env_name, reward_class=L2RPNReward)
         self.env_.seed(seed)
         # Actuator and Sensor
-        self.actuator = Actuator(self.env_, discrete)
+        self.actuator = Actuator(self.env_)
         self.sensor = Sensor(self.env_)
         # Action space
         self.action_space = self.actuator.get_action_space()
-        self.is_discrete = discrete
         # Observation space
         self.observation_space = self.sensor.get_observation_space()
-        # Number of substations
-        self.num_substations = self.actuator.n_subs
-        # Mask
-        self.mask = self.actuator.mask
 
     def reset(self):
         obs_ = self.env_.reset()
@@ -65,7 +60,11 @@ class GridEnv(gym.Env):
 
 if __name__ == '__main__':
     env = GridEnv()
-    check_env(env)
+    try:
+        check_env(env)
+        print('Environment ready!')
+    except:
+        print('Something wrong')
 
 
 

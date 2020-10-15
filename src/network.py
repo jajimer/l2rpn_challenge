@@ -39,16 +39,15 @@ class GridCNN(BaseFeaturesExtractor):
     :param features_dim: (int) Number of features extracted.
         This corresponds to the number of unit for the last layer.
     """
-    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 512):
+    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 1024):
         super(GridCNN, self).__init__(observation_space, features_dim)
         # We assume CxHxW images (channels first)
         input_channels = observation_space.shape[-1]
         self.conv1 = GCNConv(input_channels, 64)
         self.conv2 = GCNConv(64, 32)
         self.cnn = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=8, stride=2, padding=1),
+            nn.Conv2d(1, 8, kernel_size=8, stride=2, padding=1),
             nn.ReLU(),
-            nn.BatchNorm2d(16),
             nn.Flatten(),
         )
         # Compute shape by doing one forward pass
@@ -57,6 +56,7 @@ class GridCNN(BaseFeaturesExtractor):
             H, A_  = self.conv1(obs[:, 0], obs[:, 1])
             H2, _ = self.conv2(A_, H)
             n_flatten = self.cnn(H2.unsqueeze(1)).float().shape[1]
+            print(n_flatten)
         # Final layer
         self.linear = nn.Sequential(nn.Linear(n_flatten, features_dim), nn.ReLU())
 
@@ -66,36 +66,8 @@ class GridCNN(BaseFeaturesExtractor):
         H, A_  = self.conv1(A, X)
         H2, _ = self.conv2(A_, H) # Not sure if here I should put A or A_
         out = self.linear(self.cnn(H2.unsqueeze(1)))
+        print(out.shape)
         return out
-
-
-class OldGridCNN(BaseFeaturesExtractor):
-    """
-    :param observation_space: (gym.Space)
-    :param features_dim: (int) Number of features extracted.
-        This corresponds to the number of unit for the last layer.
-    """
-    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 512):
-        super(GridCNN, self).__init__(observation_space, features_dim)
-        # We assume CxHxW images (channels first)
-        n_input_channels = observation_space.shape[0]
-        self.cnn = nn.Sequential(
-            nn.Conv2d(n_input_channels, 32, kernel_size=4, stride=2, padding=0),
-            nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=0),
-            nn.ReLU(),
-            nn.BatchNorm2d(64),
-            nn.Flatten(),
-        )
-        # Compute shape by doing one forward pass
-        with th.no_grad():
-            n_flatten = self.cnn(th.as_tensor(observation_space.sample()[None]).float()).shape[1]
-        # Latent vector
-        self.linear = nn.Sequential(nn.Linear(n_flatten, features_dim))
-
-    def forward(self, observations: th.Tensor) -> th.Tensor:
-        return self.linear(self.cnn(observations))
 
 
 class CustomNetwork(nn.Module):
@@ -111,25 +83,21 @@ class CustomNetwork(nn.Module):
     def __init__(
         self,
         feature_dim: int,
-        last_layer_dim_pi: int = 36,
-        last_layer_dim_vf: int = 64,
+        last_layer_dim_pi: int = 512,
+        last_layer_dim_vf: int = 256,
     ):
         super(CustomNetwork, self).__init__()
-
         # Save output dimensions, used to create the distributions
         self.latent_dim_pi = last_layer_dim_pi
         self.latent_dim_vf = last_layer_dim_vf
-
         # Policy network
         self.policy_net = nn.Sequential(
-            nn.Dropout(0.2),
-            nn.Linear(feature_dim, last_layer_dim_pi, bias = False),
-#            nn.Softmax(1)
+            nn.Linear(feature_dim, last_layer_dim_pi, bias = True),
+            nn.ReLU()
         )
         # Value network
         self.value_net = nn.Sequential(
-            nn.Dropout(0.2),
-            nn.Linear(feature_dim, last_layer_dim_vf, bias = False), 
+            nn.Linear(feature_dim, last_layer_dim_vf, bias = True), 
             nn.ReLU()
         )
 
@@ -138,8 +106,4 @@ class CustomNetwork(nn.Module):
         :return: (th.Tensor, th.Tensor) latent_policy, latent_value of the specified network.
             If all layers are shared, then ``latent_policy == latent_value``
         """
-        V = self.value_net(features)
-        logits = self.policy_net(features)
-        T = 1.0 #logits.max() - logits.mean()
-        pi = nn.Tanh()(logits) #Softmax(1)(logits / T)
-        return pi, V
+        return self.policy_net(features), self.value_net(features)
