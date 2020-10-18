@@ -77,7 +77,7 @@ if __name__ == "__main__":
     import grid2op
     env_name = "l2rpn_neurips_2020_track1_small"
     env = grid2op.make(env_name)
-    ratios = {16: 0.4, 26: 0.1, 23: 0.1, 21: 0.1}
-    N = 190
+    ratios = {16: 0.2, 26: 0.1, 23: 0.1, 21: 0.1}
+    N = 90
     actions = create_action_array(env, N, ratios)
     np.savez_compressed('actions_topo_array.npz', actions_array=actions)

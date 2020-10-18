@@ -9,6 +9,8 @@ from time import time
 
 class Sensor(object):
     def __init__(self, env_grid2op, N = 10):
+        self.env = env_grid2op
+        self.action_space = env_grid2op.action_space
         # Attributes of the grid
         self.dim_topo = env_grid2op.dim_topo
         self.reward_range = env_grid2op.reward_range
@@ -102,13 +104,26 @@ class Sensor(object):
         t1 = time()
         return np.array([A, X])
 
-    def process_reward(self, reward, min_ = -1., max_ = 1.):
+    def process_reward(self, reward, action, new_range = (-1,1), 
+                       do_something_penalty = 0.8, illegal_penalty = 0.2):
+        # Normalize reward
         R_ = (reward - self.reward_range[0]) / (self.reward_range[1] - self.reward_range[0])
-        R = R_ * (max_ - min_) + min_
+        R = R_ * (new_range[1] - new_range[0]) + new_range[0]
+        # Apply penalty for doing something
+        if action != self.action_space():
+            R = R*do_something_penalty if R > new_range[0] else R
+        # Apply penalty for illegal or ambiguous action
+        if action.is_ambiguous()[0] or not self.action_space._is_legal(action, self.env)[0]:
+            R -= illegal_penalty
         return R
 
 
 if __name__ == "__main__":
     from environment import GridEnv
     env = GridEnv()
-    obs = env.reset()
+    for i in range(3):
+        obs = env.reset()
+        done = False
+        while not done:
+            next_obs, r, done, info = env.step(env.action_space.sample())
+            print(i, r)

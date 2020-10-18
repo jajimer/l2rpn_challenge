@@ -48,7 +48,7 @@ class GridEnv(gym.Env):
             print(action)
             obs_, reward_, done, info = self.env_.step(self.actuator._do_nothing)
         obs = self.sensor.process_obs(obs_)
-        reward = self.sensor.process_reward(reward_)
+        reward = self.sensor.process_reward(reward_, action_)
         return obs, reward, done, info
 
     def render(self):
