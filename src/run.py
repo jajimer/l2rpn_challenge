@@ -35,6 +35,7 @@ def main():
     parser.add_argument('--norm_adv', help="Normalize advantage", action='store_true')
     parser.add_argument("--total_steps", help="Number of total steps", type=float, default=1e6)
     parser.add_argument('--use_backend', action='store_true')
+    parser.add_argument("--custom_name", help="Name of the run", type=str, default='')
     args = parser.parse_args()
 
     # Execution params
@@ -44,7 +45,8 @@ def main():
     MODEL_PATHS = './logs/'
 
     # Log
-    exp_id = str(args.algo) + str(args.n) + datetime.now().strftime('%Y%m%d%H%M')
+    name = '_%s_' % args.custom_name
+    exp_id = str(args.algo) + str(args.n) + name + datetime.now().strftime('%Y%m%d%H%M')
     log_path = MODEL_PATHS + exp_id
     log_file = '%s/params.log' % log_path
     if not os.path.exists(log_path):

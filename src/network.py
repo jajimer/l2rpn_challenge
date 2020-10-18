@@ -42,7 +42,7 @@ class GridCNN(BaseFeaturesExtractor):
     def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 1024):
         super(GridCNN, self).__init__(observation_space, features_dim)
         # We assume CxHxW images (channels first)
-        input_channels = observation_space.shape[-1]
+        input_channels = 10 #observation_space.shape[-1]
         self.conv1 = GCNConv(input_channels, 64)
         self.conv2 = GCNConv(64, 32)
         self.cnn = nn.Sequential(
@@ -53,7 +53,7 @@ class GridCNN(BaseFeaturesExtractor):
         # Compute shape by doing one forward pass
         with th.no_grad():
             obs = th.as_tensor(observation_space.sample()[None])
-            H, A_  = self.conv1(obs[:, 0], obs[:, 1])
+            H, A_  = self.conv1(obs[:, 0], obs[:, 1, :, :10])
             H2, _ = self.conv2(A_, H)
             n_flatten = self.cnn(H2.unsqueeze(1)).float().shape[1]
             print(n_flatten)
@@ -62,11 +62,10 @@ class GridCNN(BaseFeaturesExtractor):
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
         A = observations[:, 0]
-        X = observations[:, 1]
+        X = observations[:, 1, :, :10]
         H, A_  = self.conv1(A, X)
         H2, _ = self.conv2(A_, H) # Not sure if here I should put A or A_
         out = self.linear(self.cnn(H2.unsqueeze(1)))
-        print(out.shape)
         return out
 
 
