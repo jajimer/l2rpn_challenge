@@ -55,6 +55,7 @@ class Actuator(object):
         # Load action array
         loaded = np.load(file_actions_array)
         self.actions_array = np.transpose(loaded['actions_array'])
+        self.do_nothing = self.actions_array.shape[0] + self.num_lines - 1
 
     def get_action_space(self):
             return spaces.Discrete(self.actions_array.shape[0] + self.num_lines)
@@ -68,7 +69,7 @@ class Actuator(object):
             new_action = self._action_space({'change_line_status': change_status})
         else:
             # Topology actions
-            action_vector = self.actions_array[self.num_lines - id_action]
+            action_vector = self.actions_array[id_action - self.num_lines]
             new_action = self._action_space.from_vect(action_vector)
         return new_action
 

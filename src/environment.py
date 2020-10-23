@@ -16,15 +16,20 @@ from actuator import Actuator
 
 class GridEnv(gym.Env):
     def __init__(self, env_name = "l2rpn_neurips_2020_track1_small",
-                 seed = 42, use_backend = False, env_config = None):
+                 seed = 42, use_backend = False, difficulty = 'competition'):
         super(GridEnv, self).__init__()
         # Instance of the grid2op env
         if use_backend:
             from lightsim2grid.LightSimBackend import LightSimBackend
             backend = LightSimBackend()
-            self.env_ = grid2op.make(env_name, reward_class=L2RPNReward, backend=backend)
+            self.env_ = grid2op.make(env_name, 
+                                     reward_class=L2RPNReward, 
+                                     backend=backend, 
+                                     difficulty=difficulty)
         else:
-            self.env_ = grid2op.make(env_name, reward_class=L2RPNReward)
+            self.env_ = grid2op.make(env_name, 
+                                     reward_class=L2RPNReward,
+                                     difficulty=difficulty)
         self.env_.seed(seed)
         # Actuator and Sensor
         self.actuator = Actuator(self.env_)

@@ -71,7 +71,7 @@ class Sensor(object):
         cooldown = obs.time_before_cooldown_sub
         for k, v in self.object_types.items():
             sub_id = v['sub']
-            C[k] = cooldown[sub_id] / self.ts_sub_cooldown
+            C[k] = cooldown[sub_id] / self.ts_sub_cooldown if self.ts_sub_cooldown > 0 else 0.0
         O = np.zeros(A.shape[0])
         overflow = obs.timestep_overflow
         for k, v in self.object_types.items():
