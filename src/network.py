@@ -39,12 +39,13 @@ class GridCNN(BaseFeaturesExtractor):
     :param features_dim: (int) Number of features extracted.
         This corresponds to the number of unit for the last layer.
     """
-    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 1024):
+    def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 10):
         super(GridCNN, self).__init__(observation_space, features_dim)
         # We assume CxHxW images (channels first)
         input_channels = 10 #observation_space.shape[-1]
         self.conv1 = GCNConv(input_channels, 64)
         self.conv2 = GCNConv(64, 32)
+        self.conv3 = GCNConv(32, features_dim)
         self.cnn = nn.Sequential(
             nn.Conv2d(1, 8, kernel_size=8, stride=2, padding=1),
             nn.ReLU(),
@@ -54,18 +55,21 @@ class GridCNN(BaseFeaturesExtractor):
         with th.no_grad():
             obs = th.as_tensor(observation_space.sample()[None])
             H, A_  = self.conv1(obs[:, 0], obs[:, 1, :, :10])
-            H2, _ = self.conv2(A_, H)
-            n_flatten = self.cnn(H2.unsqueeze(1)).float().shape[1]
+            H2, A_ = self.conv2(A_, H)
+            H3, _ = self.conv3(A_, H2)
+            n_flatten = H3.shape[1]
             print(n_flatten)
         # Final layer
-        self.linear = nn.Sequential(nn.Linear(n_flatten, features_dim), nn.ReLU())
+        self.linear = nn.Sequential(nn.Flatten(), nn.Identity())
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
         A = observations[:, 0]
         X = observations[:, 1, :, :10]
         H, A_  = self.conv1(A, X)
-        H2, _ = self.conv2(A_, H) # Not sure if here I should put A or A_
-        out = self.linear(self.cnn(H2.unsqueeze(1)))
+        H2, A_ = self.conv2(A_, H) # Not sure if here I should put A or A_
+        H3, _ = self.conv3(A_, H2)
+        out = self.linear(H3)
+        print(out.shape)
         return out
 
 
@@ -91,12 +95,12 @@ class CustomNetwork(nn.Module):
         self.latent_dim_vf = last_layer_dim_vf
         # Policy network
         self.policy_net = nn.Sequential(
-            nn.Linear(feature_dim, last_layer_dim_pi, bias = True),
+            nn.Linear(feature_dim * 177, last_layer_dim_pi, bias = True),
             nn.ReLU()
         )
         # Value network
         self.value_net = nn.Sequential(
-            nn.Linear(feature_dim, last_layer_dim_vf, bias = True), 
+            nn.Linear(feature_dim * 177, last_layer_dim_vf, bias = True), 
             nn.ReLU()
         )
 

@@ -21,7 +21,7 @@ from utils import TensorboardCallback, benchmark_do_nothing
 
 # Execution params
 SEED = 42
-EVAL_FREQ = 100 #1000
+EVAL_FREQ = 500
 EVAL_EPISODES = 10
 TB_LOGS = './tb_logs/'
 MODEL_PATHS = './logs'
